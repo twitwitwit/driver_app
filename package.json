@@ -1,0 +1,9 @@
+{
+  "name": "swiftride",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SwiftRide Android Application",
+  "scripts": {
+    "build": "echo 'Android build managed by Gradle'"
+  }
+}

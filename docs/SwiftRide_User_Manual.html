@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftRide - Comprehensive User Manual</title>
+    <style>
+        :root {
+            --primary-gold: #FFD700;
+            --primary-green: #4CAF50;
+            --dark-charcoal: #1A1A1A;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --bg-light: #F9F9F9;
+            --white: #FFFFFF;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            background: var(--white);
+            padding: 60px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--primary-gold);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+
+        .cover-img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--dark-charcoal);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        h2 {
+            color: var(--dark-charcoal);
+            border-left: 5px solid var(--primary-gold);
+            padding-left: 15px;
+            margin-top: 40px;
+            font-size: 1.8em;
+        }
+
+        h3 {
+            color: var(--primary-green);
+            margin-top: 25px;
+            font-size: 1.4em;
+        }
+
+        p {
+            margin-bottom: 15px;
+        }
+
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .section-break {
+            height: 1px;
+            background: #eee;
+            margin: 40px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .badge-passenger { background-color: #E3F2FD; color: #1976D2; }
+        .badge-driver { background-color: #FFF3E0; color: #F57C00; }
+
+        .feature-box {
+            background: #f0f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-green);
+            margin: 20px 0;
+        }
+
+        footer {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+
+        @media print {
+            body { background: white; }
+            .container { box-shadow: none; margin: 0; width: 100%; max-width: none; padding: 20px; }
+            .page-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <img src="../app/src/main/res/drawable/img_manual_cover_1788788260168.jpg" alt="SwiftRide User Manual Cover" class="cover-img">
+        <h1>SwiftRide User Manual</h1>
+        <p>Your Ultimate Guide to Seamless Transportation</p>
+    </header>
+
+    <section id="introduction">
+        <h2>1. Introduction</h2>
+        <p>Welcome to <strong>SwiftRide</strong>, the next-generation ride-booking platform designed for efficiency, safety, and comfort. Whether you are a passenger looking for a reliable ride or a driver looking to maximize earnings, this manual will guide you through every feature of the app.</p>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section id="passenger-manual">
+        <div class="badge badge-passenger">Passenger Manual</div>
+        <h2>2. Passenger Guide</h2>
+        
+        <h3>2.1 Getting Started</h3>
+        <p>Download the SwiftRide app and sign up using your mobile number and email. Once registered, you can choose your preferred role from the home screen.</p>
+        
+        <h3>2.2 Booking a Ride</h3>
+        <p>Follow these simple steps to get to your destination:</p>
+        <img src="../app/src/main/res/drawable/img_passenger_booking_steps_1788788452087.jpg" alt="Passenger Booking Steps" class="cover-img">
+        <ul>
+            <li><strong>Step 1: Set Destination:</strong> Enter your drop-off location to see available routes.</li>
+            <li><strong>Step 2: Choose Your Ride:</strong> Select from our premium fleet based on your needs.</li>
+            <li><strong>Step 3: Confirm & Track:</strong> Once matched, track your driver in real-time.</li>
+        </ul>
+
+        <div class="feature-box">
+            <strong>Pro Tip:</strong> Use the promo code <strong>TNV550</strong> for a 50% discount on your first few rides!
+        </div>
+
+        <h3>2.3 Real-Time Tracking</h3>
+        <p>Once a driver accepts your request, you can track their location in real-time on the map. You will receive notifications when the driver is approaching and when they arrive at your pickup point.</p>
+
+        <h3>2.4 Payments & Wallet</h3>
+        <p>SwiftRide supports multiple payment methods:</p>
+        <ul>
+            <li><strong>Cash:</strong> Pay the driver directly upon arrival.</li>
+            <li><strong>GCash:</strong> Integrated secure digital payment.</li>
+            <li><strong>SwiftRide Wallet:</strong> Top up your wallet for one-tap payments and exclusive rewards.</li>
+        </ul>
+
+        <h3>2.5 Safety Features</h3>
+        <p>Your safety is our priority. Use the <strong>SOS Button</strong> in the active ride screen to immediately alert emergency services and share your live location with authorities.</p>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section id="driver-manual">
+        <div class="badge badge-driver">Driver Manual</div>
+        <h2>3. Driver Guide</h2>
+
+        <h3>3.1 Registration & Verification</h3>
+        <p>To become a SwiftRide partner, upload your <em>Driver's License, Vehicle OR/CR,</em> and <em>NBI Clearance</em> through the Profile > Documents section. Our team will review your application within 24-48 hours.</p>
+
+        <h3>3.2 Going Online</h3>
+        <p>Start your journey as a SwiftRide partner:</p>
+        <img src="../app/src/main/res/drawable/img_driver_operations_steps_1788788473110.jpg" alt="Driver Operation Steps" class="cover-img">
+        <p>Toggle the status switch on the Home tab to <strong>Online</strong>. You will start receiving ride requests from passengers in your vicinity.</p>
+
+        <h3>3.3 Accepting Rides</h3>
+        <p>When a request appears, you have 24 seconds to review the pickup distance, destination, and estimated earnings. Tap <strong>Accept</strong> to secure the trip.</p>
+
+        <h3>3.4 Earnings & Withdrawals</h3>
+        <p>Track your daily, weekly, and monthly earnings in the <strong>Earnings</strong> tab. You can withdraw your balance directly to your GCash account at any time.</p>
+
+        <div class="feature-box">
+            <strong>High Rating Bonus:</strong> Drivers with a rating of 4.8 or higher are eligible for priority matching and special performance bonuses.
+        </div>
+    </section>
+
+    <section id="support">
+        <h2>4. Support & FAQs</h2>
+        <p>Need help? Contact our 24/7 Support Center through the app or email us at <strong>support@swiftride.com</strong>.</p>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 SwiftRide Inc. All rights reserved.</p>
+        <p><em>SwiftRide - The Future of Urban Mobility</em></p>
+    </footer>
+</div>
+
+</body>
+</html>

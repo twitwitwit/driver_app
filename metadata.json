@@ -1,0 +1,6 @@
+{
+  "name": "SwiftRide Driver",
+  "description": "Driver interface for SwiftRide, allowing drivers to manage trips, view route details, and handle ride requests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
