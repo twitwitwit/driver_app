@@ -19,6 +19,8 @@ android {
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+    buildConfigField("String", "SWIFTRIDE_API_BASE_URL", "\"${providers.gradleProperty("SWIFTRIDE_API_BASE_URL").orElse(System.getenv("SWIFTRIDE_API_BASE_URL") ?: "http://10.0.2.2:5000/api").get()}\"")
+    buildConfigField("String", "SWIFTRIDE_MOBILE_KEY", "\"${providers.gradleProperty("SWIFTRIDE_MOBILE_KEY").orElse(System.getenv("SWIFTRIDE_MOBILE_KEY") ?: "").get()}\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
