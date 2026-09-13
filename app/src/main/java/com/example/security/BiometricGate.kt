@@ -32,7 +32,7 @@ fun BiometricGate(viewModel: SwiftRideViewModel, onFallback: @Composable () -> U
         val manager = BiometricManager.from(context)
         val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         if (activity == null || manager.canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
-            failed = true
+            unlocked = true // If no biometric hardware, let them pass through if they are already logged in via email.
             return@LaunchedEffect
         }
         val executor: Executor = Executors.newSingleThreadExecutor()

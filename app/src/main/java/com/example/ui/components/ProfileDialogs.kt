@@ -90,9 +90,9 @@ fun PersonalInfoPage(viewModel: SwiftRideViewModel) {
     val email by viewModel.userEmail.collectAsState()
     val profilePictureUri by viewModel.profilePictureUri.collectAsState()
 
-    var editName by remember { mutableStateOf(name) }
-    var editPhone by remember { mutableStateOf(phone) }
-    var editEmail by remember { mutableStateOf(email) }
+    var editName by remember(name) { mutableStateOf(name) }
+    var editPhone by remember(phone) { mutableStateOf(phone) }
+    var editEmail by remember(email) { mutableStateOf(email) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -281,29 +281,48 @@ fun SavedPlacesPage(viewModel: SwiftRideViewModel) {
     Column(modifier = Modifier.fillMaxSize()) {
         DialogHeader(title = "Saved Places") { viewModel.showProfileDialog(null) }
 
-        LazyColumn(modifier = Modifier.padding(horizontal = 20.dp)) {
-            items(places) { (title, address) ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SwiftGrayBg)
+        if (places.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SwiftGrayBg)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = SwiftTextMuted, modifier = Modifier.size(40.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("No Saved Places", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SwiftTextPrimary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Save your home, work, or favorite spots for faster booking.", fontSize = 12.sp, color = SwiftTextSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.padding(horizontal = 20.dp)) {
+                items(places) { (title, address) ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SwiftGrayBg)
                     ) {
-                        Icon(
-                            if (title == "Home") Icons.Default.Home else if (title == "Work") Icons.Default.Work else Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = SwiftGoldDark
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = title, fontWeight = FontWeight.Bold)
-                            Text(text = address, fontSize = 12.sp, color = SwiftTextSecondary)
-                        }
-                        IconButton(onClick = { viewModel.removeSavedPlace(title) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SwiftRed)
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (title == "Home") Icons.Default.Home else if (title == "Work") Icons.Default.Work else Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = SwiftGoldDark
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = title, fontWeight = FontWeight.Bold)
+                                Text(text = address, fontSize = 12.sp, color = SwiftTextSecondary)
+                            }
+                            IconButton(onClick = { viewModel.removeSavedPlace(title) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SwiftRed)
+                            }
                         }
                     }
                 }
@@ -355,8 +374,10 @@ fun SavedPlacesPage(viewModel: SwiftRideViewModel) {
 fun ReviewsPage(viewModel: SwiftRideViewModel) {
     val role by viewModel.userRole.collectAsState()
     val isDriver = role == UserRole.DRIVER
-    val ratingValue = if (isDriver) "4.9" else "4.8"
-    val reviewCount = if (isDriver) "542" else "12"
+    val allRides by viewModel.allRides.collectAsState(initial = emptyList())
+    val ratedRides = allRides.filter { it.passengerRated && it.ratingGiven > 0f }
+    val ratingValue = if (ratedRides.isEmpty()) "—" else "%.1f".format(ratedRides.map { it.ratingGiven }.average().takeIf { !it.isNaN() } ?: 0.0)
+    val reviewCount = ratedRides.size
 
     Column(modifier = Modifier.fillMaxSize()) {
         DialogHeader(title = "Your Reviews") { viewModel.showProfileDialog(null) }
@@ -369,11 +390,17 @@ fun ReviewsPage(viewModel: SwiftRideViewModel) {
             ) {
                 Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(ratingValue, fontSize = 48.sp, fontWeight = FontWeight.Black, color = SwiftGold)
-                    Row {
-                        repeat(5) { Icon(Icons.Default.Star, contentDescription = null, tint = SwiftGold, modifier = Modifier.size(24.dp)) }
+                    if (reviewCount > 0) {
+                        Row {
+                            repeat(5) { Icon(Icons.Default.Star, contentDescription = null, tint = SwiftGold, modifier = Modifier.size(24.dp)) }
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Based on $reviewCount reviews", color = SwiftWhite, fontSize = 12.sp)
+                    Text(
+                        if (reviewCount == 0) "New Account • No ratings yet" else "Based on $reviewCount reviews",
+                        color = SwiftWhite,
+                        fontSize = 12.sp
+                    )
                 }
             }
 
@@ -381,48 +408,33 @@ fun ReviewsPage(viewModel: SwiftRideViewModel) {
             Text(text = if (isDriver) "Recent Passenger Feedback" else "Recent Driver Feedback", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (isDriver) {
-                ReviewItem(
-                    name = "Maria Santos",
-                    date = "Today",
-                    rating = 5,
-                    comment = "Very smooth ride! The car was super clean and the driver was very professional. Highly recommended!"
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                ReviewItem(
-                    name = "Robert Fox",
-                    date = "Yesterday",
-                    rating = 5,
-                    comment = "Arrived exactly on time. Great music choice and comfortable temperature."
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                ReviewItem(
-                    name = "Jenny Wilson",
-                    date = "2 days ago",
-                    rating = 4,
-                    comment = "Fast and safe driving. A bit quiet but overall a great experience."
-                )
+            if (ratedRides.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SwiftGrayBg)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = null, tint = SwiftTextMuted, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No Reviews Yet", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SwiftTextPrimary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Feedback and ratings will show up here after completing trips.", fontSize = 12.sp, color = SwiftTextSecondary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                }
             } else {
-                ReviewItem(
-                    name = "Juan Dela Cruz",
-                    date = "Oct 12, 2023",
-                    rating = 5,
-                    comment = "Excellent passenger, very polite and was ready at the pickup point. 5 stars!"
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                ReviewItem(
-                    name = "Ricardo Dalisay",
-                    date = "Sep 28, 2023",
-                    rating = 5,
-                    comment = "Very respectful and followed all safety protocols. Easy to communicate with."
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                ReviewItem(
-                    name = "Sarah Geronimo",
-                    date = "Aug 15, 2023",
-                    rating = 5,
-                    comment = "Prompt and friendly! Looking forward to having them as a passenger again."
-                )
+                ratedRides.forEach { ride ->
+                    ReviewItem(
+                        name = if (isDriver) ride.passengerName else ride.driverName,
+                        date = "${ride.dateLabel} • ${ride.timeLabel}",
+                        rating = ride.ratingGiven.toInt().coerceIn(1, 5),
+                        comment = ride.reviewFeedback.ifBlank { "Great experience with SwiftRide!" }
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
         }
     }
@@ -836,7 +848,7 @@ fun DocumentsPage(viewModel: SwiftRideViewModel) {
 
             OutlinedButton(
                 onClick = { 
-                    viewModel.triggerPushNotification("Documents Update 📄", "Your request for review has been sent.", "INFO")
+                    viewModel.submitDocumentsForReview()
                     viewModel.showProfileDialog(null)
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -1002,6 +1014,11 @@ fun ManageVehiclePage(viewModel: SwiftRideViewModel) {
             Text("Current Vehicle", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
 
+            val currentModel by viewModel.driverVehicleModel.collectAsState()
+            val currentPlate by viewModel.driverPlateNumber.collectAsState()
+            val currentColor by viewModel.driverVehicleColor.collectAsState()
+            val currentType by viewModel.driverVehicleType.collectAsState()
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -1012,8 +1029,8 @@ fun ManageVehiclePage(viewModel: SwiftRideViewModel) {
                         Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = SwiftGold, modifier = Modifier.size(32.dp))
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            Text("Toyota Vios (Black)", fontWeight = FontWeight.Bold, color = SwiftWhite)
-                            Text("NDA 1234 • Sedan", fontSize = 12.sp, color = SwiftGold)
+                            Text("$currentModel ($currentColor)", fontWeight = FontWeight.Bold, color = SwiftWhite)
+                            Text("$currentPlate • $currentType", fontSize = 12.sp, color = SwiftGold)
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -1025,10 +1042,10 @@ fun ManageVehiclePage(viewModel: SwiftRideViewModel) {
             Text("Vehicle Details", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
 
-            var model by remember { mutableStateOf("Toyota Vios") }
-            var plate by remember { mutableStateOf("NDA 1234") }
-            var color by remember { mutableStateOf("Black") }
-            var vehicleType by remember { mutableStateOf("Sedan") }
+            var model by remember(currentModel) { mutableStateOf(currentModel) }
+            var plate by remember(currentPlate) { mutableStateOf(currentPlate) }
+            var color by remember(currentColor) { mutableStateOf(currentColor) }
+            var vehicleType by remember(currentType) { mutableStateOf(currentType) }
             var showTypeDropdown by remember { mutableStateOf(false) }
 
             OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("Vehicle Model") }, modifier = Modifier.fillMaxWidth())
@@ -1072,6 +1089,7 @@ fun ManageVehiclePage(viewModel: SwiftRideViewModel) {
 
             Button(
                 onClick = {
+                    viewModel.updateVehicle(model, plate, color, vehicleType)
                     viewModel.showProfileDialog(null)
                     viewModel.triggerPushNotification("Vehicle Updated", "Your vehicle details have been saved.", "INFO")
                 },

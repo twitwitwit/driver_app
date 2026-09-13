@@ -77,6 +77,14 @@ import com.example.ui.theme.SwiftTextSecondary
 import kotlinx.coroutines.delay
 import com.example.ui.theme.SwiftWhite
 import com.example.ui.viewmodel.SwiftRideViewModel
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
@@ -200,9 +208,11 @@ private fun LoginView(
     onSwitchToSignUp: () -> Unit
 ) {
     val context = LocalContext.current as android.app.Activity
-    var phoneNumber by remember { mutableStateOf("+639123456789") }
-    var otpCode by remember { mutableStateOf("") }
-    var isOtpRequested by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -217,7 +227,7 @@ private fun LoginView(
             modifier = Modifier.align(Alignment.Start)
         )
         Text(
-            text = "Enter your phone number to receive an OTP",
+            text = "Enter your details to log in",
             fontSize = 13.sp,
             color = SwiftTextSecondary,
             modifier = Modifier.align(Alignment.Start)
@@ -225,43 +235,62 @@ private fun LoginView(
 
         Spacer(modifier = Modifier.height(18.dp))
 
+        if (errorText != null) {
+            Text(
+                text = errorText!!,
+                color = Color.Red,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
         OutlinedTextField(
-            value = phoneNumber,
-            onValueChange = { phoneNumber = it },
-            label = { Text("Phone Number (+63...)") },
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email Address") },
             leadingIcon = {
-                Icon(imageVector = Icons.Default.Phone, contentDescription = null, tint = SwiftGoldDark)
+                Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = SwiftGoldDark)
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
         )
 
-        if (isOtpRequested) {
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedTextField(
-                value = otpCode,
-                onValueChange = { otpCode = it },
-                label = { Text("6-Digit OTP Code") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = SwiftGoldDark)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-            )
-        }
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password") },
+            leadingIcon = {
+                Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = SwiftGoldDark)
+            },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+        )
 
         Spacer(modifier = Modifier.height(18.dp))
 
         Button(
             onClick = {
-                if (!isOtpRequested) {
-                    viewModel.requestOtp(phoneNumber, context)
-                    isOtpRequested = true
+                if (email.isBlank() || password.isBlank()) {
+                    errorText = "Please fill in all fields"
                 } else {
-                    viewModel.verifyOtp(otpCode)
-                    onLoginSuccess()
+                    errorText = null
+                    viewModel.loginWithEmail(email, password) { success, msg ->
+                        if (success) {
+                            onLoginSuccess()
+                        } else {
+                            errorText = msg
+                        }
+                    }
                 }
             },
             modifier = Modifier
@@ -274,11 +303,28 @@ private fun LoginView(
             )
         ) {
             Text(
-                text = if (!isOtpRequested) "Request OTP" else "Verify Code",
+                text = "Log In",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        SocialLoginButton(
+            title = "Sign In with Google",
+            icon = "G",
+            onClick = {
+                errorText = null
+                handleGoogleSignIn(
+                    context = context,
+                    scope = scope,
+                    viewModel = viewModel,
+                    onSuccess = onLoginSuccess,
+                    onError = { errorText = it }
+                )
+            }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -315,11 +361,9 @@ private fun SignUpView(
     val confirmPassword by viewModel.registrationConfirmPassword.collectAsState()
     val vehicleDetails by viewModel.registrationVehicleDetails.collectAsState()
     
-    var phoneNumber by remember { mutableStateOf("+639123456789") }
-    var otpCode by remember { mutableStateOf("") }
-    var isOtpRequested by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -351,99 +395,80 @@ private fun SignUpView(
             )
         }
 
-        if (!isOtpRequested) {
-            // Step 1: Input Details
-            OutlinedTextField(
-                value = name,
-                onValueChange = { viewModel.updateRegistrationName(it) },
-                label = { Text("Full Name") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedTextField(
-                value = phoneNumber,
-                onValueChange = { phoneNumber = it },
-                label = { Text("Phone Number (+63...)") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                shape = RoundedCornerShape(12.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedTextField(
-                value = email,
-                onValueChange = { viewModel.updateRegistrationEmail(it) },
-                label = { Text("Email (Optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedTextField(
-                value = password,
-                onValueChange = { viewModel.updateRegistrationPassword(it) },
-                label = { Text("Password") },
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-            // Strength Indicator
-            val criteria = viewModel.getPasswordStrengthCriteria(password)
-            val metCount = criteria.values.count { it }
-            val strengthColor = when (metCount) {
-                4 -> SwiftGreen
-                3 -> Color(0xFFFF9800) // Orange
-                else -> Color.Red
-            }
-
-            LinearProgressIndicator(
-                progress = { metCount / 4f },
-                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                color = strengthColor,
-                trackColor = SwiftBorder
-            )
-            
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                criteria.forEach { (name, met) ->
-                    Text(
-                        text = name,
-                        fontSize = 10.sp,
-                        color = if (met) SwiftGreen else SwiftTextMuted
-                    )
+        OutlinedTextField(
+            value = name,
+            onValueChange = { viewModel.updateRegistrationName(it) },
+            label = { Text("Full Name") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        OutlinedTextField(
+            value = email,
+            onValueChange = { viewModel.updateRegistrationEmail(it) },
+            label = { Text("Email Address") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            shape = RoundedCornerShape(12.dp)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { viewModel.updateRegistrationPassword(it) },
+            label = { Text("Password") },
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
                 }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { viewModel.updateRegistrationConfirmPassword(it) },
-                label = { Text("Confirm Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+        
+        // Strength Indicator
+        val criteria = viewModel.getPasswordStrengthCriteria(password)
+        val metCount = criteria.values.count { it }
+        val strengthColor = when (metCount) {
+            4 -> SwiftGreen
+            3 -> Color(0xFFFF9800) // Orange
+            else -> Color.Red
+        }
 
-            if (selectedRole == UserRole.DRIVER) {
-                Spacer(modifier = Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = vehicleDetails,
-                    onValueChange = { viewModel.updateRegistrationVehicleDetails(it) },
-                    label = { Text("Vehicle Details") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+        LinearProgressIndicator(
+            progress = { metCount / 4f },
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+            color = strengthColor,
+            trackColor = SwiftBorder
+        )
+        
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            criteria.forEach { (critName, met) ->
+                Text(
+                    text = critName,
+                    fontSize = 10.sp,
+                    color = if (met) SwiftGreen else SwiftTextMuted
                 )
             }
-        } else {
-            // Step 2: Input OTP
+        }
+        
+        Spacer(modifier = Modifier.height(10.dp))
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = { viewModel.updateRegistrationConfirmPassword(it) },
+            label = { Text("Confirm Password") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        if (selectedRole == UserRole.DRIVER) {
+            Spacer(modifier = Modifier.height(10.dp))
             OutlinedTextField(
-                value = otpCode,
-                onValueChange = { otpCode = it },
-                label = { Text("6-Digit OTP Code") },
+                value = vehicleDetails,
+                onValueChange = { viewModel.updateRegistrationVehicleDetails(it) },
+                label = { Text("Vehicle Details") },
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 shape = RoundedCornerShape(12.dp)
             )
         }
@@ -452,29 +477,46 @@ private fun SignUpView(
 
         Button(
             onClick = {
-                if (!isOtpRequested) {
-                    if (name.isBlank() || phoneNumber.isBlank() || password.isBlank()) {
-                        errorText = "Please fill in all required fields"
-                    } else if (password != confirmPassword) {
-                        errorText = "Passwords do not match"
-                    } else if (!viewModel.isPasswordStrong(password)) {
-                        errorText = "Password is not strong enough"
-                    } else {
-                        errorText = null
-                        viewModel.requestOtp(phoneNumber, context)
-                        isOtpRequested = true
-                    }
+                if (name.isBlank() || email.isBlank() || password.isBlank()) {
+                    errorText = "Please fill in all required fields"
+                } else if (password != confirmPassword) {
+                    errorText = "Passwords do not match"
+                } else if (!viewModel.isPasswordStrong(password)) {
+                    errorText = "Password is not strong enough"
                 } else {
-                    viewModel.verifyOtp(otpCode)
-                    onSignUpSuccess()
+                    errorText = null
+                    viewModel.signUpWithEmail(email, password, name) { success, msg ->
+                        if (success) {
+                            onSignUpSuccess()
+                        } else {
+                            errorText = msg
+                        }
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SwiftGold, contentColor = SwiftDark)
         ) {
-            Text(if (!isOtpRequested) "Sign Up" else "Verify & Complete", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Sign Up", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        SocialLoginButton(
+            title = "Sign Up with Google",
+            icon = "G",
+            onClick = {
+                errorText = null
+                handleGoogleSignIn(
+                    context = context,
+                    scope = scope,
+                    viewModel = viewModel,
+                    onSuccess = onSignUpSuccess,
+                    onError = { errorText = it }
+                )
+            }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -513,5 +555,55 @@ private fun SocialLoginButton(title: String, icon: String, onClick: () -> Unit) 
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+private fun handleGoogleSignIn(
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    viewModel: SwiftRideViewModel,
+    onSuccess: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val credentialManager = CredentialManager.create(context)
+    
+    val googleIdOption = GetGoogleIdOption.Builder()
+        .setFilterByAuthorizedAccounts(false)
+        .setServerClientId("678826789099-50tqt8u0j9fbake2l185jvslocj8isjq.apps.googleusercontent.com")
+        .build()
+
+    val request = GetCredentialRequest.Builder()
+        .addCredentialOption(googleIdOption)
+        .build()
+
+    scope.launch {
+        try {
+            val result = credentialManager.getCredential(
+                request = request,
+                context = context,
+            )
+            val credential = result.credential
+            
+            if (credential is androidx.credentials.CustomCredential &&
+                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                
+                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                val firebaseCredential = GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
+                
+                viewModel.loginWithGoogle(firebaseCredential) { success, msg ->
+                    if (success) {
+                        onSuccess()
+                    } else {
+                        onError(msg ?: "Google Sign-In failed")
+                    }
+                }
+            } else {
+                onError("Unexpected credential type.")
+            }
+        } catch (e: GetCredentialException) {
+            onError(e.localizedMessage ?: "Google Sign-In canceled or failed")
+        } catch (e: Exception) {
+            onError(e.localizedMessage ?: "An error occurred during Google Sign-In")
+        }
     }
 }

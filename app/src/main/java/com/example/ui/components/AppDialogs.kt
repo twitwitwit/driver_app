@@ -672,11 +672,14 @@ fun TopUpWalletDialog(
 @Composable
 fun WithdrawEarningsDialog(
     currentBalance: Double,
+    payoutMethods: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onWithdrawSuccess: (amount: Double, account: String) -> Unit
 ) {
     var amountText by remember { mutableStateOf(currentBalance.toInt().toString()) }
-    var destination by remember { mutableStateOf("GCash (0912 345 6789)") }
+    val effectiveMethods = if (payoutMethods.isNotEmpty()) payoutMethods else listOf("GCash (0912 345 6789)", "BDO Savings (**** 4892)", "Maya Account")
+    var destination by remember { mutableStateOf(effectiveMethods.firstOrNull() ?: "GCash") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -718,7 +721,10 @@ fun WithdrawEarningsDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = { 
+                        amountText = it 
+                        errorMessage = null
+                    },
                     label = { Text("Amount to withdraw (₱)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -729,6 +735,15 @@ fun WithdrawEarningsDialog(
                     )
                 )
 
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = errorMessage!!,
+                        color = Color.Red,
+                        fontSize = 12.sp
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
                     text = "Payout Destination",
@@ -738,7 +753,7 @@ fun WithdrawEarningsDialog(
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
-                listOf("GCash (0912 345 6789)", "BDO Savings (**** 4892)", "Maya Account").forEach { acc ->
+                effectiveMethods.forEach { acc ->
                     val isSelected = destination == acc
                     Row(
                         modifier = Modifier
@@ -769,10 +784,14 @@ fun WithdrawEarningsDialog(
                 Button(
                     onClick = {
                         val amt = amountText.toDoubleOrNull() ?: 0.0
-                        if (amt > 0) {
+                        if (amt <= 0) {
+                            errorMessage = "Please enter a valid withdrawal amount."
+                        } else if (amt > currentBalance) {
+                            errorMessage = "Amount exceeds available balance (₱${"%.2f".format(currentBalance)})."
+                        } else {
                             onWithdrawSuccess(amt, destination)
+                            onDismiss()
                         }
-                        onDismiss()
                     },
                     modifier = Modifier
                         .fillMaxWidth()

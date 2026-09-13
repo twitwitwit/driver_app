@@ -27,6 +27,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Call
@@ -58,6 +60,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -298,6 +301,10 @@ fun DriverHomeScreen(
     val rideStatus by viewModel.rideStatus.collectAsState()
     val gpsProgress by viewModel.gpsProgress.collectAsState()
     val etaMinutes by viewModel.etaMinutes.collectAsState()
+    val userName by viewModel.userName.collectAsState()
+    val allRides by viewModel.allRides.collectAsState(initial = emptyList())
+    val completedTripsCount = allRides.count { it.status == "COMPLETED" }
+    val avgRating = if (completedTripsCount == 0) "—" else "${"%.1f".format(allRides.filter { it.status == "COMPLETED" && it.passengerRated }.map { it.ratingGiven }.average().takeIf { !it.isNaN() } ?: 0.0)} ★"
     
     var showVerificationScreen by remember { mutableStateOf(false) }
 
@@ -305,7 +312,7 @@ fun DriverHomeScreen(
         DriverDocumentVerificationScreen(
             onBack = { showVerificationScreen = false },
             onVerify = { 
-                // viewModel.verifyDriver() // Temporarily removed
+                viewModel.verifyDriver()
                 showVerificationScreen = false
             }
         )
@@ -316,6 +323,8 @@ fun DriverHomeScreen(
         DriverActiveRideScreen(viewModel = viewModel)
         return
     }
+
+    val firstName = userName.split(" ").firstOrNull() ?: "Driver"
 
     Column(
         modifier = Modifier
@@ -332,7 +341,7 @@ fun DriverHomeScreen(
         ) {
             Column {
                 Text(
-                    text = "Good Morning, John!",
+                    text = "Good Morning, $firstName!",
                     fontFamily = com.example.ui.theme.PoppinsFontFamily,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -447,7 +456,7 @@ fun DriverHomeScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Stat Row: Completed Trips (12), Online Time (5h 42m), Average Rating (4.9) (Slide 8)
+        // Stat Row: Completed Trips, Online Time, Average Rating
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -464,7 +473,7 @@ fun DriverHomeScreen(
                 ) {
                     Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = SwiftGoldDark, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "12", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
+                    Text(text = "$completedTripsCount", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
                     Text(text = "Completed Trips", fontSize = 10.sp, color = SwiftTextSecondary)
                 }
             }
@@ -481,7 +490,7 @@ fun DriverHomeScreen(
                 ) {
                     Icon(Icons.Default.AccessTime, contentDescription = null, tint = SwiftGoldDark, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "5h 42m", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
+                    Text(text = if (isOnline) "Active" else "0h 0m", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
                     Text(text = "Online Time", fontSize = 10.sp, color = SwiftTextSecondary)
                 }
             }
@@ -498,7 +507,7 @@ fun DriverHomeScreen(
                 ) {
                     Icon(Icons.Default.Star, contentDescription = null, tint = SwiftGold, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "4.9 ★", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
+                    Text(text = avgRating, fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
                     Text(text = "Average Rating", fontSize = 10.sp, color = SwiftTextSecondary)
                 }
             }
@@ -506,8 +515,55 @@ fun DriverHomeScreen(
 
         Spacer(modifier = Modifier.height(18.dp))
 
+        // Offline status notice
+        if (!isOnline && activeRide == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SwiftWhite),
+                border = androidx.compose.foundation.BorderStroke(1.dp, SwiftBorder)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(SwiftRedBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.PowerSettingsNew, contentDescription = null, tint = SwiftRed, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "You are currently Offline",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SwiftTextPrimary
+                        )
+                        Text(
+                            text = if (!isVerified) "Complete document verification to go online." else "Toggle online above to start receiving ride requests.",
+                            fontSize = 11.sp,
+                            color = SwiftTextSecondary
+                        )
+                    }
+                    if (!isVerified) {
+                        TextButton(
+                            onClick = { showVerificationScreen = true }
+                        ) {
+                            Text("Verify", color = SwiftGoldDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+        }
+
         // New Ride Request Card with 24s timer (Slide 8)
-        AnimatedVisibility(visible = incomingRequest != null) {
+        AnimatedVisibility(visible = isOnline && incomingRequest != null) {
             val req = incomingRequest
             if (req != null) {
                 Card(
@@ -746,46 +802,81 @@ fun DriverTripsScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(filteredRides) { ride ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = SwiftWhite),
-                    elevation = CardDefaults.cardElevation(1.dp)
+        if (filteredRides.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SwiftWhite),
+                elevation = CardDefaults.cardElevation(1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(text = "${ride.dateLabel} • ${ride.timeLabel}", fontSize = 11.sp, color = SwiftTextMuted)
-                            Text(text = "₱${"%.2f".format(ride.fare)}", fontSize = 15.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = "Passenger: ${ride.passengerName}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "${ride.pickupAddress} ➔ ${ride.dropoffAddress}", fontSize = 11.sp, color = SwiftTextSecondary)
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Button(
-                                onClick = { viewModel.showReceipt(ride) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = SwiftGoldLight,
-                                    contentColor = SwiftGoldDark
-                                ),
-                                modifier = Modifier.height(30.dp)
+                    Icon(
+                        imageVector = Icons.Default.DirectionsCar,
+                        contentDescription = null,
+                        tint = SwiftTextMuted,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "No Trips Found",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SwiftTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Your trip requests and completed rides will appear here.",
+                        fontSize = 12.sp,
+                        color = SwiftTextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filteredRides) { ride ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = SwiftWhite),
+                        elevation = CardDefaults.cardElevation(1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "Receipt", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text(text = "${ride.dateLabel} • ${ride.timeLabel}", fontSize = 11.sp, color = SwiftTextMuted)
+                                Text(text = "₱${"%.2f".format(ride.fare)}", fontSize = 15.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(text = "Passenger: ${ride.passengerName}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = "${ride.pickupAddress} ➔ ${ride.dropoffAddress}", fontSize = 11.sp, color = SwiftTextSecondary)
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Button(
+                                    onClick = { viewModel.showReceipt(ride) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = SwiftGoldLight,
+                                        contentColor = SwiftGoldDark
+                                    ),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Text(text = "Receipt", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -802,8 +893,64 @@ fun DriverTripsScreen(
 fun DriverChatScreen(
     viewModel: SwiftRideViewModel
 ) {
+    val activeRide by viewModel.activeRide.collectAsState()
     val messages by viewModel.chatMessages.collectAsState()
     var textMessage by remember { mutableStateOf("") }
+
+    if (activeRide == null) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SwiftGrayBg)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(SwiftGoldLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    tint = SwiftGoldDark,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No Active Ride",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = SwiftTextPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Passenger chat is only accessible once you accept an active ride request.",
+                fontSize = 13.sp,
+                color = SwiftTextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Button(
+                onClick = { viewModel.setDriverTab("Home") },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SwiftGold,
+                    contentColor = SwiftDark
+                )
+            ) {
+                Text(text = "Go to Home", fontWeight = FontWeight.Bold)
+            }
+        }
+        return
+    }
+
+    val ride = activeRide!!
+    val passengerInitials = ride.passengerName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "P" }
 
     Column(modifier = Modifier.fillMaxSize().background(SwiftGrayBg)) {
         Surface(
@@ -823,21 +970,19 @@ fun DriverChatScreen(
                             .background(SwiftGoldLight),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "MS", fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftGoldDark)
+                        Text(text = passengerInitials, fontSize = 16.sp, fontWeight = FontWeight.Black, color = SwiftGoldDark)
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "Maria Santos", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
+                        Text(text = ride.passengerName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = SwiftGold, modifier = Modifier.size(12.dp))
-                            Text(text = " 4.9 • 12 trips • ", fontSize = 11.sp, color = SwiftTextSecondary)
-                            Text(text = "Online 🟢", fontSize = 11.sp, color = SwiftGreenText, fontWeight = FontWeight.Bold)
+                            Text(text = "${ride.passengerPhone} • Active Trip", fontSize = 11.sp, color = SwiftTextSecondary)
                         }
                     }
                     IconButton(onClick = {
                         viewModel.triggerPushNotification(
                             title = "Calling Passenger 📞",
-                            message = "Dialing Maria Santos (+63 917 555 9876)...",
+                            message = "Dialing ${ride.passengerName} (${ride.passengerPhone})...",
                             type = "RIDE_UPDATE"
                         )
                     }) {
@@ -857,53 +1002,87 @@ fun DriverChatScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "SM Fairview", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(text = ride.pickupAddress, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         Text(text = " ➔ ", fontSize = 11.sp, color = SwiftGoldDark)
-                        Text(text = "SM North EDSA", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(text = ride.dropoffAddress, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
-                    Text(text = "₱185.00", fontSize = 12.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "₱${"%.2f".format(ride.fare)}", fontSize = 12.sp, fontWeight = FontWeight.Black, color = SwiftTextPrimary)
                 }
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(messages, key = { it.id }) { msg ->
-                val isMe = msg.senderRole == "DRIVER"
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
-                ) {
-                    Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
-                        Box(
-                            modifier = Modifier
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 16.dp,
-                                        topEnd = 16.dp,
-                                        bottomStart = if (isMe) 16.dp else 4.dp,
-                                        bottomEnd = if (isMe) 4.dp else 16.dp
+        if (messages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        tint = SwiftTextMuted,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No Messages Yet",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SwiftTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Send a message or coordinate pickup with ${ride.passengerName}.",
+                        fontSize = 12.sp,
+                        color = SwiftTextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(messages, key = { it.id }) { msg ->
+                    val isMe = msg.senderRole == "DRIVER"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                    ) {
+                        Column(horizontalAlignment = if (isMe) Alignment.End else Alignment.Start) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(
+                                        RoundedCornerShape(
+                                            topStart = 16.dp,
+                                            topEnd = 16.dp,
+                                            bottomStart = if (isMe) 16.dp else 4.dp,
+                                            bottomEnd = if (isMe) 4.dp else 16.dp
+                                        )
                                     )
+                                    .background(if (isMe) SwiftGold else SwiftWhite)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = msg.message,
+                                    fontSize = 13.sp,
+                                    color = if (isMe) SwiftDark else SwiftTextPrimary
                                 )
-                                .background(if (isMe) SwiftGold else SwiftWhite)
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
+                            }
                             Text(
-                                text = msg.message,
-                                fontSize = 13.sp,
-                                color = if (isMe) SwiftDark else SwiftTextPrimary
+                                text = msg.timeString,
+                                fontSize = 10.sp,
+                                color = SwiftTextMuted,
+                                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
                             )
                         }
-                        Text(
-                            text = msg.timeString,
-                            fontSize = 10.sp,
-                            color = SwiftTextMuted,
-                            modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
-                        )
                     }
                 }
             }
@@ -923,7 +1102,7 @@ fun DriverChatScreen(
                 OutlinedTextField(
                     value = textMessage,
                     onValueChange = { textMessage = it },
-                    placeholder = { Text("Reply to passenger...", fontSize = 13.sp) },
+                    placeholder = { Text("Reply to ${ride.passengerName}...", fontSize = 13.sp) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp)
                 )
@@ -931,7 +1110,7 @@ fun DriverChatScreen(
                 IconButton(
                     onClick = {
                         if (textMessage.isNotBlank()) {
-                            viewModel.sendChatMessage(1, textMessage)
+                            viewModel.sendChatMessage(ride.id, textMessage)
                             textMessage = ""
                         }
                     },
@@ -956,12 +1135,19 @@ fun DriverEarningsScreen(
 ) {
     val earnings by viewModel.driverWalletBalance.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
+    val allRides by viewModel.allRides.collectAsState(initial = emptyList())
+    val isOnline by viewModel.isDriverOnline.collectAsState()
+    val completedCount = allRides.count { it.status == "COMPLETED" }
+    val avgFare = if (completedCount == 0) "₱0.00" else "₱${"%.2f".format(allRides.filter { it.status == "COMPLETED" }.map { it.fare }.average().takeIf { !it.isNaN() } ?: 0.0)}"
+    val avgRating = if (completedCount == 0) "—" else "${"%.1f".format(allRides.filter { it.status == "COMPLETED" && it.passengerRated }.map { it.ratingGiven }.average().takeIf { !it.isNaN() } ?: 0.0)} ★"
+    val payoutMethods by viewModel.paymentMethods.collectAsState()
     var selectedPeriod by remember { mutableStateOf("Daily") }
     var showWithdrawDialog by remember { mutableStateOf(false) }
 
     if (showWithdrawDialog) {
         WithdrawEarningsDialog(
             currentBalance = earnings,
+            payoutMethods = payoutMethods,
             onDismiss = { showWithdrawDialog = false },
             onWithdrawSuccess = { amount, account ->
                 viewModel.withdrawDriverEarnings(amount, account)
@@ -1039,16 +1225,16 @@ fun DriverEarningsScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // 4 Metric cards: Completed Trips (12), Online Time (5h 42m), Average Fare (₱185.00), Average Rating (4.9) (Slide 9)
+        // 4 Metric cards: Completed Trips, Online Time, Average Fare, Average Rating
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
-                "12" to "Completed Trips",
-                "5h 42m" to "Online Time",
-                "₱185.00" to "Average Fare",
-                "4.9 ★" to "Average Rating"
+                "$completedCount" to "Completed Trips",
+                (if (isOnline) "Active" else "0h 0m") to "Online Time",
+                avgFare to "Average Fare",
+                avgRating to "Average Rating"
             ).forEach { (value, label) ->
                 Card(
                     modifier = Modifier.weight(1f),
@@ -1174,60 +1360,95 @@ fun DriverEarningsScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        transactions.forEach { tx ->
+        if (transactions.isEmpty()) {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SwiftWhite),
                 elevation = CardDefaults.cardElevation(1.dp)
             ) {
-                Row(
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = SwiftTextMuted,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No Transactions Yet",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SwiftTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Your earnings, withdrawals, and wallet transactions will appear here.",
+                        fontSize = 11.sp,
+                        color = SwiftTextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            transactions.forEach { tx ->
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SwiftWhite),
+                    elevation = CardDefaults.cardElevation(1.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = tx.title,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SwiftTextPrimary
-                        )
-                        Text(
-                            text = tx.subtitle,
-                            fontSize = 11.sp,
-                            color = SwiftTextSecondary
-                        )
-                        Text(
-                            text = tx.dateString,
-                            fontSize = 10.sp,
-                            color = SwiftTextMuted
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "${if (tx.isIncome) "+" else "-"}₱${"%.2f".format(tx.amount)}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            color = if (tx.isIncome) SwiftGreenText else SwiftRedText
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFF2F4F7))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = tx.paymentType,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                text = tx.title,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SwiftTextPrimary
+                            )
+                            Text(
+                                text = tx.subtitle,
+                                fontSize = 11.sp,
                                 color = SwiftTextSecondary
                             )
+                            Text(
+                                text = tx.dateString,
+                                fontSize = 10.sp,
+                                color = SwiftTextMuted
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "${if (tx.isIncome) "+" else "-"}₱${"%.2f".format(tx.amount)}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (tx.isIncome) SwiftGreenText else SwiftRedText
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(SwiftGoldLight)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = tx.paymentType,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SwiftGoldDark
+                                )
+                            }
                         }
                     }
                 }
@@ -1260,6 +1481,15 @@ fun DriverProfileScreen(
     val earnings by viewModel.driverWalletBalance.collectAsState()
     val userName by viewModel.userName.collectAsState()
     val profilePictureUri by viewModel.profilePictureUri.collectAsState()
+    val driverId by viewModel.driverId.collectAsState()
+    val vehicleModel by viewModel.driverVehicleModel.collectAsState()
+    val plateNumber by viewModel.driverPlateNumber.collectAsState()
+    val vehicleColor by viewModel.driverVehicleColor.collectAsState()
+    val vehicleType by viewModel.driverVehicleType.collectAsState()
+    val isOnline by viewModel.isDriverOnline.collectAsState()
+    val allRides by viewModel.allRides.collectAsState(initial = emptyList())
+    val completedTripsCount = allRides.count { it.status == "COMPLETED" }
+    val ratingStr = if (completedTripsCount == 0) "—" else "%.1f".format(allRides.filter { it.status == "COMPLETED" && it.passengerRated }.map { it.ratingGiven }.average().takeIf { !it.isNaN() } ?: 0.0)
 
     Column(
         modifier = Modifier
@@ -1283,7 +1513,7 @@ fun DriverProfileScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Driver Card: John Michael Nabung, Driver ID SWD-1204 (Slide 9)
+        // Driver Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(18.dp),
@@ -1306,8 +1536,9 @@ fun DriverProfileScreen(
                                 contentScale = ContentScale.Crop
                             )
                         } else {
+                            val initials = userName.split(" ").mapNotNull { it.firstOrNull() }.joinToString("").take(2).uppercase().ifBlank { "DR" }
                             Text(
-                                text = userName.split(" ").mapNotNull { it.firstOrNull() }.joinToString("").take(2).uppercase(),
+                                text = initials,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Black,
                                 color = SwiftDark
@@ -1317,13 +1548,17 @@ fun DriverProfileScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = userName,
+                            text = userName.ifBlank { "SwiftRide Driver" },
                             fontFamily = com.example.ui.theme.PoppinsFontFamily,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = SwiftWhite
                         )
-                        Text(text = "Driver ID: SWD-1204 • Online 🟢", fontSize = 11.sp, color = SwiftGold)
+                        Text(
+                            text = if (isOnline) "Driver ID: $driverId • Online 🟢" else "Driver ID: $driverId • Offline 🔴",
+                            fontSize = 11.sp,
+                            color = if (isOnline) SwiftGold else SwiftRedText
+                        )
                     }
                 }
 
@@ -1357,16 +1592,16 @@ fun DriverProfileScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Stats: 542 Total Trips, 4.9 Rating, 98% Acceptance Rate, 3 Vouchers (Slide 9)
+        // Stats: Total Trips, Your Rating, Acceptance Rate, Promo Vouchers
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(
-                "542" to "Total Trips",
-                "4.9" to "Your Rating",
-                "98%" to "Acceptance Rate",
-                "3" to "Promo Vouchers"
+                "$completedTripsCount" to "Total Trips",
+                ratingStr to "Your Rating",
+                (if (completedTripsCount == 0) "100%" else "98%") to "Acceptance Rate",
+                "0" to "Promo Vouchers"
             ).forEach { (value, label) ->
                 Card(
                     modifier = Modifier.weight(1f),
@@ -1412,8 +1647,10 @@ fun DriverProfileScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Toyota Vios (Black)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
-                    Text(text = "NDA 1234 • Sedan • 4 Seats", fontSize = 11.sp, color = SwiftTextSecondary)
+                    val displayName = if (vehicleModel.isNotBlank()) "$vehicleModel ${if (vehicleColor.isNotBlank()) "($vehicleColor)" else ""}".trim() else "No vehicle registered"
+                    val displaySub = if (plateNumber.isNotBlank()) "$plateNumber • $vehicleType • 4 Seats" else "Tap to add your vehicle details"
+                    Text(text = displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SwiftTextPrimary)
+                    Text(text = displaySub, fontSize = 11.sp, color = SwiftTextSecondary)
                 }
                 Text(text = "Manage >", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SwiftGoldDark)
             }

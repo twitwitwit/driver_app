@@ -81,36 +81,47 @@ fun SwiftRideDriverApp(viewModel: SwiftRideViewModel) {
                 }
             )
         } else {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                bottomBar = {
-                    DriverBottomNav(
-                        currentTab = driverTab,
-                        onTabSelected = { tab ->
-                            viewModel.setDriverTab(tab)
-                        }
+            com.example.security.BiometricGate(
+                viewModel = viewModel,
+                onFallback = {
+                    AuthScreen(
+                        viewModel = viewModel,
+                        lockedRole = UserRole.DRIVER,
+                        onLoginSuccess = { viewModel.setUserRole(UserRole.DRIVER) }
                     )
                 }
-            ) { innerPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    Crossfade(targetState = driverTab, label = "driver_tabs") { tab ->
-                        when (tab) {
-                            "Home" -> DriverHomeScreen(
-                                viewModel = viewModel,
-                                onNavigateToTrips = { viewModel.setDriverTab("Trips") }
-                            )
-                            "Trips" -> DriverTripsScreen(viewModel = viewModel)
-                            "Chat" -> DriverChatScreen(viewModel = viewModel)
-                            "Earnings" -> DriverEarningsScreen(viewModel = viewModel)
-                            "Profile" -> DriverProfileScreen(viewModel = viewModel)
-                            else -> DriverHomeScreen(
-                                viewModel = viewModel,
-                                onNavigateToTrips = { viewModel.setDriverTab("Trips") }
-                            )
+            ) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        DriverBottomNav(
+                            currentTab = driverTab,
+                            onTabSelected = { tab ->
+                                viewModel.setDriverTab(tab)
+                            }
+                        )
+                    }
+                ) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    ) {
+                        Crossfade(targetState = driverTab, label = "driver_tabs") { tab ->
+                            when (tab) {
+                                "Home" -> DriverHomeScreen(
+                                    viewModel = viewModel,
+                                    onNavigateToTrips = { viewModel.setDriverTab("Trips") }
+                                )
+                                "Trips" -> DriverTripsScreen(viewModel = viewModel)
+                                "Chat" -> DriverChatScreen(viewModel = viewModel)
+                                "Earnings" -> DriverEarningsScreen(viewModel = viewModel)
+                                "Profile" -> DriverProfileScreen(viewModel = viewModel)
+                                else -> DriverHomeScreen(
+                                    viewModel = viewModel,
+                                    onNavigateToTrips = { viewModel.setDriverTab("Trips") }
+                                )
+                            }
                         }
                     }
                 }

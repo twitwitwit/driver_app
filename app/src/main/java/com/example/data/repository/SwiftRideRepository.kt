@@ -91,4 +91,11 @@ class SwiftRideRepository(private val database: AppDatabase) {
     }
 
     suspend fun markAllNotificationsAsRead() = database.notificationDao().markAllAsRead()
+
+    suspend fun clearAllUserData() = withContext(Dispatchers.IO) {
+        database.rideDao().deleteAllRides()
+        database.chatDao().deleteAllMessages()
+        database.transactionDao().deleteAllTransactions()
+        database.notificationDao().deleteAllNotifications()
+    }
 }

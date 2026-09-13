@@ -33,6 +33,9 @@ interface RideDao {
 
     @Query("UPDATE rides SET ratingGiven = :rating, reviewFeedback = :review, passengerRated = 1 WHERE id = :id")
     suspend fun updateRideRating(id: Long, rating: Float, review: String)
+
+    @Query("DELETE FROM rides")
+    suspend fun deleteAllRides()
 }
 
 @Dao
@@ -45,6 +48,9 @@ interface ChatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessages(messages: List<ChatMessageEntity>)
+
+    @Query("DELETE FROM chat_messages")
+    suspend fun deleteAllMessages()
 }
 
 @Dao
@@ -57,6 +63,9 @@ interface TransactionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransactions(transactions: List<WalletTransactionEntity>)
+
+    @Query("DELETE FROM wallet_transactions")
+    suspend fun deleteAllTransactions()
 }
 
 @Dao
@@ -72,4 +81,7 @@ interface NotificationDao {
 
     @Query("UPDATE push_notifications SET isRead = 1")
     suspend fun markAllAsRead()
+
+    @Query("DELETE FROM push_notifications")
+    suspend fun deleteAllNotifications()
 }

@@ -29,7 +29,11 @@ import java.util.Locale
 
 class SwiftRideViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth? = try {
+        FirebaseAuth.getInstance()
+    } catch (e: Exception) {
+        null
+    }
     private val repository: SwiftRideRepository
     val allRides: StateFlow<List<RideEntity>>
     val allTransactions: StateFlow<List<WalletTransactionEntity>>
@@ -73,10 +77,10 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     val driverTab: StateFlow<String> = _driverTab.asStateFlow()
 
     // Wallets
-    private val _passengerWalletBalance = MutableStateFlow(1250.00)
+    private val _passengerWalletBalance = MutableStateFlow(0.00)
     val passengerWalletBalance: StateFlow<Double> = _passengerWalletBalance.asStateFlow()
 
-    private val _driverWalletBalance = MutableStateFlow(1250.00)
+    private val _driverWalletBalance = MutableStateFlow(0.00)
     val driverWalletBalance: StateFlow<Double> = _driverWalletBalance.asStateFlow()
 
     // Active Ride & Live GPS Tracking
@@ -99,7 +103,7 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     val etaMinutes: StateFlow<Int> = _etaMinutes.asStateFlow()
 
     // Driver Specific State
-    private val _isDriverOnline = MutableStateFlow(true)
+    private val _isDriverOnline = MutableStateFlow(false)
     val isDriverOnline: StateFlow<Boolean> = _isDriverOnline.asStateFlow()
 
     // Dark Mode Support
@@ -138,23 +142,72 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     val scheduledTime: StateFlow<String> = _scheduledTime.asStateFlow()
 
     // Profile Management State
-    private val _userName = MutableStateFlow("John Michael Nabung")
+    private val _userName = MutableStateFlow("")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    private val _userPhone = MutableStateFlow("0912 345 6789")
+    private val _userPhone = MutableStateFlow("")
     val userPhone: StateFlow<String> = _userPhone.asStateFlow()
 
-    private val _userEmail = MutableStateFlow("john.michael@email.com")
+    private val _userEmail = MutableStateFlow("")
     val userEmail: StateFlow<String> = _userEmail.asStateFlow()
 
     private val _profilePictureUri = MutableStateFlow<String?>(null)
     val profilePictureUri: StateFlow<String?> = _profilePictureUri.asStateFlow()
 
+    private val _driverVehicleModel = MutableStateFlow("")
+    val driverVehicleModel: StateFlow<String> = _driverVehicleModel.asStateFlow()
+
+    private val _driverPlateNumber = MutableStateFlow("")
+    val driverPlateNumber: StateFlow<String> = _driverPlateNumber.asStateFlow()
+
+    private val _driverVehicleColor = MutableStateFlow("")
+    val driverVehicleColor: StateFlow<String> = _driverVehicleColor.asStateFlow()
+
+    private val _driverVehicleType = MutableStateFlow("Sedan")
+    val driverVehicleType: StateFlow<String> = _driverVehicleType.asStateFlow()
+
+    private val _driverId = MutableStateFlow("SWD-1001")
+    val driverId: StateFlow<String> = _driverId.asStateFlow()
+
+    fun updateVehicle(model: String, plate: String, color: String, type: String) {
+        _driverVehicleModel.value = model
+        _driverPlateNumber.value = plate
+        _driverVehicleColor.value = color
+        _driverVehicleType.value = type
+    }
+
+    fun syncUserWithAuth() {
+        val user = auth?.currentUser ?: return
+        val displayName = user.displayName
+        if (!displayName.isNullOrBlank()) {
+            _userName.value = displayName
+        } else if (!user.email.isNullOrBlank()) {
+            val generatedName = user.email!!.substringBefore("@")
+                .split(".", "_", "-")
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part ->
+                    part.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+                }
+            _userName.value = generatedName
+        }
+        if (!user.email.isNullOrBlank()) {
+            _userEmail.value = user.email!!
+        }
+        if (!user.phoneNumber.isNullOrBlank()) {
+            _userPhone.value = user.phoneNumber!!
+        }
+        if (user.photoUrl != null) {
+            _profilePictureUri.value = user.photoUrl.toString()
+        }
+        val uidPart = user.uid.take(4).uppercase()
+        _driverId.value = "SWD-$uidPart"
+    }
+
     private val _driverDocuments = MutableStateFlow<List<DriverDocument>>(
         listOf(
-            DriverDocument("Driver's License", "Verified", "GREEN"),
-            DriverDocument("Vehicle OR/CR", "Verified", "GREEN"),
-            DriverDocument("NBI Clearance", "Expired", "RED")
+            DriverDocument("Driver's License", "Missing", "RED"),
+            DriverDocument("Vehicle OR/CR", "Missing", "RED"),
+            DriverDocument("NBI Clearance", "Missing", "RED")
         )
     )
     val driverDocuments: StateFlow<List<DriverDocument>> = _driverDocuments.asStateFlow()
@@ -189,11 +242,47 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
         triggerPushNotification("Document Uploaded 📄", "$title is now pending review.", "INFO")
     }
 
-    private val _savedPlaces = MutableStateFlow(listOf("Home" to "Bagong Silang, Caloocan City", "Work" to "SM North EDSA, Quezon City"))
+    fun submitDocumentsForReview() {
+        val updatedDocs = _driverDocuments.value.map { doc ->
+            if (doc.status == "Expired" || doc.status == "Missing") {
+                doc.copy(status = "Pending", colorKey = "GOLD")
+            } else {
+                doc
+            }
+        }
+        _driverDocuments.value = updatedDocs
+        // In this simulation flow, mark driver as verified once submitted
+        _isDriverVerified.value = true
+        triggerPushNotification("Verification Approved ✅", "Your driver documents have been approved. You can now go online!", "INFO")
+    }
+
+    fun verifyDriver() {
+        _isDriverVerified.value = true
+        val updatedDocs = _driverDocuments.value.map { doc ->
+            doc.copy(status = "Verified", colorKey = "GREEN")
+        }
+        _driverDocuments.value = updatedDocs
+        triggerPushNotification("Driver Verified ✅", "All documents verified successfully.", "INFO")
+    }
+
+    private val _savedPlaces = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val savedPlaces: StateFlow<List<Pair<String, String>>> = _savedPlaces.asStateFlow()
 
-    private val _paymentMethods = MutableStateFlow(listOf("VISA **** 1234", "GCash", "SwiftRide Wallet"))
+    private val _paymentMethods = MutableStateFlow(listOf("Cash", "SwiftRide Wallet"))
     val paymentMethods: StateFlow<List<String>> = _paymentMethods.asStateFlow()
+
+    private val _driverPayoutMethods = MutableStateFlow(listOf<String>())
+    val driverPayoutMethods: StateFlow<List<String>> = _driverPayoutMethods.asStateFlow()
+
+    fun addDriverPayoutMethod(method: String) {
+        if (!_driverPayoutMethods.value.contains(method)) {
+            _driverPayoutMethods.value = _driverPayoutMethods.value + method
+        }
+    }
+
+    fun removeDriverPayoutMethod(method: String) {
+        _driverPayoutMethods.value = _driverPayoutMethods.value.filter { it != method }
+    }
 
     private val _activeProfileDialog = MutableStateFlow<String?>(null)
     val activeProfileDialog: StateFlow<String?> = _activeProfileDialog.asStateFlow()
@@ -206,6 +295,21 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
         _userName.value = name
         _userPhone.value = phone
         _userEmail.value = email
+        val user = auth?.currentUser
+        if (user != null && name.isNotBlank()) {
+            viewModelScope.launch {
+                try {
+                    val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                        .setDisplayName(name)
+                        .build()
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.google.android.gms.tasks.Tasks.await(user.updateProfile(profileUpdates))
+                    }
+                } catch (e: Exception) {
+                    logDiagnostic("SwiftRideAuth", "Update profile failed", e)
+                }
+            }
+        }
     }
 
     fun addPaymentMethod(method: String) {
@@ -249,28 +353,54 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     init {
-        // Collect chat messages for ride #1 by default
-        viewModelScope.launch {
-            repository.getMessagesForRide(1).collect { list ->
-                _chatMessages.value = list
+        // Automatically sync profile if user is already signed in
+        if (auth?.currentUser != null) {
+            _isLoggedIn.value = true
+            syncUserWithAuth()
+        }
+        auth?.addAuthStateListener { fb ->
+            if (fb.currentUser != null) {
+                _isLoggedIn.value = true
+                syncUserWithAuth()
             }
         }
 
-        // Initialize driver incoming request simulation matching Slide 8
-        initDriverRequestSimulation()
+        // Collect chat messages dynamically for the current active ride
+        viewModelScope.launch {
+            _activeRide.collect { active ->
+                if (active != null && active.id > 0) {
+                    repository.getMessagesForRide(active.id).collect { list ->
+                        _chatMessages.value = list
+                    }
+                } else {
+                    _chatMessages.value = emptyList()
+                }
+            }
+        }
+
+        // Only start incoming request simulation if driver is online and verified
+        if (_isDriverOnline.value && _isDriverVerified.value) {
+            initDriverRequestSimulation()
+        }
     }
 
     private fun initDriverRequestSimulation() {
+        if (!_isDriverOnline.value || !_isDriverVerified.value) return
+        val currentDriverName = _userName.value.ifBlank { "SwiftRide Driver" }
+        val currentDriverPhone = _userPhone.value.ifBlank { "0912 345 6789" }
+        val currentVehicleModel = _driverVehicleModel.value
+        val currentPlate = _driverPlateNumber.value
+        val currentVehicleType = _driverVehicleType.value
         val sampleRequest = RideEntity(
             id = 999,
             passengerName = "Maria Santos",
             passengerPhone = "0917 555 9876",
             passengerRating = 4.9f,
-            driverName = "John Michael Nabung",
-            driverPhone = "0912 345 6789",
-            vehicleType = "Sedan",
-            vehicleModel = "Toyota Vios (Black)",
-            vehiclePlate = "NDA 1234",
+            driverName = currentDriverName,
+            driverPhone = currentDriverPhone,
+            vehicleType = currentVehicleType,
+            vehicleModel = "$currentVehicleModel ($currentPlate)",
+            vehiclePlate = currentPlate,
             pickupAddress = "SM Fairview",
             dropoffAddress = "SM North EDSA",
             fare = 185.00,
@@ -287,8 +417,18 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
         driverRequestCountdownJob?.cancel()
         driverRequestCountdownJob = viewModelScope.launch {
             for (i in 24 downTo 0) {
+                if (!_isDriverOnline.value) {
+                    _incomingDriverRequest.value = null
+                    break
+                }
                 _incomingCountdown.value = i
                 delay(1000)
+            }
+            if (_incomingDriverRequest.value != null) {
+                _incomingDriverRequest.value = null
+                if (_isDriverOnline.value) {
+                    triggerPushNotification("Request Expired ⏱️", "A ride request timed out.", "INFO")
+                }
             }
         }
     }
@@ -354,50 +494,109 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
         )
     }
 
-    fun requestOtp(phoneNumber: String, activity: android.app.Activity) {
-        val options = com.google.firebase.auth.PhoneAuthOptions.newBuilder(auth)
-            .setPhoneNumber(phoneNumber)
-            .setTimeout(60L, java.util.concurrent.TimeUnit.SECONDS)
-            .setActivity(activity)
-            .setCallbacks(object : com.google.firebase.auth.PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-                override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
-                    logDiagnostic("SwiftRideAuth", "Phone verification completed automatically")
-                    verifyOtpWithCredential(credential)
-                }
-
-                override fun onVerificationFailed(e: com.google.firebase.FirebaseException) {
-                    logDiagnostic("SwiftRideAuth", "Phone verification failed", e)
-                    triggerPushNotification("Auth Failed ❌", e.localizedMessage ?: "Unknown error", "RIDE_UPDATE")
-                }
-
-                override fun onCodeSent(id: String, token: com.google.firebase.auth.PhoneAuthProvider.ForceResendingToken) {
-                    verificationId = id
-                    logDiagnostic("SwiftRideAuth", "OTP code sent to phone")
-                    triggerPushNotification("OTP Sent 📱", "Please check your phone for the verification code.", "INFO")
-                }
-            })
-            .build()
-        com.google.firebase.auth.PhoneAuthProvider.verifyPhoneNumber(options)
-    }
-
-    fun verifyOtp(code: String) {
-        if (verificationId == null) {
-            logDiagnostic("SwiftRideAuth", "No verification ID found for OTP")
+    fun loginWithEmail(email: String, password: String, onComplete: (Boolean, String?) -> Unit) {
+        if (auth == null) {
+            _userName.value = email.substringBefore("@")
+            _userEmail.value = email
+            _isLoggedIn.value = true
+            onComplete(true, null)
             return
         }
-        val credential = com.google.firebase.auth.PhoneAuthProvider.getCredential(verificationId!!, code)
-        verifyOtpWithCredential(credential)
-    }
-
-    private fun verifyOtpWithCredential(credential: com.google.firebase.auth.PhoneAuthCredential) {
         viewModelScope.launch {
             try {
-                com.google.android.gms.tasks.Tasks.await(auth.signInWithCredential(credential))
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.google.android.gms.tasks.Tasks.await(auth.signInWithEmailAndPassword(email, password))
+                }
+                syncUserWithAuth()
                 _isLoggedIn.value = true
-                logDiagnostic("SwiftRideAuth", "Phone auth successful")
+                onComplete(true, null)
             } catch (e: Exception) {
-                logDiagnostic("SwiftRideAuth", "OTP verification failed", e)
-                triggerPushNotification("OTP Verification Failed ❌", "Invalid code or expired.", "RIDE_UPDATE")
+                logDiagnostic("SwiftRideAuth", "Login failed", e)
+                onComplete(false, e.localizedMessage ?: "Login failed")
+            }
+        }
+    }
+
+    fun resetUserDataForNewAccount() {
+        _passengerWalletBalance.value = 0.00
+        _driverWalletBalance.value = 0.00
+        _savedPlaces.value = emptyList()
+        _paymentMethods.value = listOf("Cash", "SwiftRide Wallet")
+        _driverDocuments.value = listOf(
+            DriverDocument("Driver's License", "Missing", "RED"),
+            DriverDocument("Vehicle OR/CR", "Missing", "RED"),
+            DriverDocument("NBI Clearance", "Missing", "RED")
+        )
+        _isDriverVerified.value = false
+        _isDriverOnline.value = false
+        _activeRide.value = null
+        _chatMessages.value = emptyList()
+        _incomingDriverRequest.value = null
+        driverRequestCountdownJob?.cancel()
+        simulationJob?.cancel()
+        viewModelScope.launch {
+            repository.clearAllUserData()
+        }
+    }
+
+    fun signUpWithEmail(email: String, password: String, name: String, onComplete: (Boolean, String?) -> Unit) {
+        resetUserDataForNewAccount()
+        if (auth == null) {
+            _userName.value = name
+            _userEmail.value = email
+            val veh = _registrationVehicleDetails.value
+            if (veh.isNotBlank()) {
+                _driverVehicleModel.value = veh
+            }
+            _isLoggedIn.value = true
+            onComplete(true, null)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.google.android.gms.tasks.Tasks.await(auth.createUserWithEmailAndPassword(email, password))
+                    val user = auth.currentUser
+                    if (user != null) {
+                        val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                            .setDisplayName(name)
+                            .build()
+                        com.google.android.gms.tasks.Tasks.await(user.updateProfile(profileUpdates))
+                    }
+                }
+                _userName.value = name
+                _userEmail.value = email
+                val veh = _registrationVehicleDetails.value
+                if (veh.isNotBlank()) {
+                    _driverVehicleModel.value = veh
+                }
+                syncUserWithAuth()
+                _isLoggedIn.value = true
+                onComplete(true, null)
+            } catch (e: Exception) {
+                logDiagnostic("SwiftRideAuth", "Sign Up failed", e)
+                onComplete(false, e.localizedMessage ?: "Registration failed")
+            }
+        }
+    }
+
+    fun loginWithGoogle(credential: com.google.firebase.auth.AuthCredential, onComplete: (Boolean, String?) -> Unit) {
+        if (auth == null) {
+            _isLoggedIn.value = true
+            onComplete(true, null)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.google.android.gms.tasks.Tasks.await(auth.signInWithCredential(credential))
+                }
+                syncUserWithAuth()
+                _isLoggedIn.value = true
+                onComplete(true, null)
+            } catch (e: Exception) {
+                logDiagnostic("SwiftRideAuth", "Google Login failed", e)
+                onComplete(false, e.localizedMessage ?: "Google Login failed")
             }
         }
     }
@@ -416,26 +615,59 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun logout() {
-        auth.signOut()
+        auth?.signOut()
         _isLoggedIn.value = false
+        _userName.value = ""
+        _userEmail.value = ""
+        _userPhone.value = ""
+        _profilePictureUri.value = null
+        resetUserDataForNewAccount()
     }
 
     fun unlockWithBiometric(): Boolean {
-        if (auth.currentUser == null) return false
+        if (auth?.currentUser == null && auth != null) return false
+        syncUserWithAuth()
         _isLoggedIn.value = true
         return true
     }
 
-    fun hasAuthenticatedSession(): Boolean = auth.currentUser != null
+    fun hasAuthenticatedSession(): Boolean {
+        val hasSession = auth?.currentUser != null
+        if (hasSession) {
+            syncUserWithAuth()
+        }
+        return hasSession
+    }
 
     fun toggleDriverOnline() {
-        _isDriverOnline.value = !_isDriverOnline.value
-        if (_isDriverOnline.value && _incomingDriverRequest.value == null) {
-            initDriverRequestSimulation()
+        if (!_isDriverVerified.value && !_isDriverOnline.value) {
+            triggerPushNotification("Verification Required ⚠️", "Please complete your document verification before going online.", "ALERT")
+            return
+        }
+        val newState = !_isDriverOnline.value
+        _isDriverOnline.value = newState
+        if (newState) {
+            triggerPushNotification("You are Online 🟢", "Searching for nearby passenger ride requests...", "INFO")
+            if (_incomingDriverRequest.value == null && _activeRide.value == null) {
+                viewModelScope.launch {
+                    delay(2000)
+                    if (_isDriverOnline.value && _activeRide.value == null) {
+                        initDriverRequestSimulation()
+                    }
+                }
+            }
+        } else {
+            triggerPushNotification("You are Offline 🔴", "You will not receive new ride requests while offline.", "INFO")
+            driverRequestCountdownJob?.cancel()
+            _incomingDriverRequest.value = null
         }
     }
 
     fun acceptIncomingDriverRide() {
+        if (!_isDriverOnline.value) {
+            triggerPushNotification("Action Blocked ⚠️", "You must be online to accept ride requests.", "ALERT")
+            return
+        }
         driverRequestCountdownJob?.cancel()
         val req = _incomingDriverRequest.value ?: return
         _incomingDriverRequest.value = null
@@ -449,7 +681,7 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
 
             triggerPushNotification(
                 title = "Ride Accepted 🚗",
-                message = "You accepted the trip for ${req.passengerName} (SM Fairview ➔ SM North EDSA)",
+                message = "You accepted the trip for ${req.passengerName} (${req.pickupAddress} ➔ ${req.dropoffAddress})",
                 type = "RIDE_UPDATE"
             )
 
@@ -478,8 +710,8 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
         val finalFare = origFare - discount
 
         val newRide = RideEntity(
-            passengerName = "John Michael Nabung",
-            passengerPhone = "0912 345 6789",
+            passengerName = _userName.value.ifBlank { "Passenger" },
+            passengerPhone = _userPhone.value.ifBlank { "0912 345 6789" },
             passengerRating = 4.8f,
             driverName = "Juan Dela Cruz",
             driverPhone = "0917 123 4567",
@@ -659,7 +891,7 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun sendChatMessage(rideId: Long, text: String, isLocation: Boolean = false) {
         val role = if (_userRole.value == UserRole.PASSENGER) "PASSENGER" else "DRIVER"
-        val name = if (role == "PASSENGER") "John Michael Nabung" else "Juan Dela Cruz"
+        val name = _userName.value.ifBlank { if (role == "PASSENGER") "Passenger" else "Driver" }
 
         viewModelScope.launch {
             repository.sendMessage(
