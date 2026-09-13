@@ -1,10 +1,10 @@
 package com.example
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,8 +29,9 @@ import com.example.ui.driver.DriverTripsScreen
 import com.example.ui.driver.DriverBottomNav
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.SwiftRideViewModel
+import com.example.security.BiometricGate
 
-class DriverActivity : ComponentActivity() {
+class DriverActivity : FragmentActivity() {
 
     private val viewModel: SwiftRideViewModel by viewModels()
 
@@ -41,7 +42,11 @@ class DriverActivity : ComponentActivity() {
         setContent {
             val isDarkMode by viewModel.isDarkMode.collectAsState()
             MyApplicationTheme(darkTheme = isDarkMode) {
-                SwiftRideDriverApp(viewModel = viewModel)
+                if (viewModel.hasAuthenticatedSession()) {
+                    BiometricGate(viewModel, onFallback = { viewModel.logout(); SwiftRideDriverApp(viewModel) }) { SwiftRideDriverApp(viewModel) }
+                } else {
+                    SwiftRideDriverApp(viewModel)
+                }
             }
         }
     }

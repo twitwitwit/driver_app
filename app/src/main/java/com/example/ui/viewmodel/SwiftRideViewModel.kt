@@ -416,8 +416,17 @@ class SwiftRideViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun logout() {
+        auth.signOut()
         _isLoggedIn.value = false
     }
+
+    fun unlockWithBiometric(): Boolean {
+        if (auth.currentUser == null) return false
+        _isLoggedIn.value = true
+        return true
+    }
+
+    fun hasAuthenticatedSession(): Boolean = auth.currentUser != null
 
     fun toggleDriverOnline() {
         _isDriverOnline.value = !_isDriverOnline.value
